@@ -13,6 +13,7 @@ public class HttpRedirectServer {
 		System.out.println("server started at 7070....");
 		while (true) {	
 			clientSocket = server.accept();
+			HttpRequestProcessor.processClient(clientSocket);
 		}
 	}
 
