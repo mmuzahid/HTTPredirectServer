@@ -27,13 +27,15 @@ public class HttpRequestProcessor implements Runnable {
 		} while (input.available() > 0);
 		
 		String reqMessage = requestBody.toString();
-		String lang = "en";
+		HttpRequest request = new HttpRequest(reqMessage);
+		String lang = request.getAcceptLanguage();
 
 		String noCacheHeader = "Cache-Control: no-cache, no-store, must-revalidate\r\n" + // HTTP 1.1 client
 				"Pragma: no-cache\r\n" + // HTTP 1.0, for client
 				"Expires: 0\r\n"; // HTTP 1.0, for client and proxies
 
-		String redirectLocation = "https://" + lang + ".wikipedia.org/wiki/URL_redirection";	
+		String redirectLocation = getLocationForLang(lang);
+		
 		String responseBody = new String("HTTP/1.1 301 Moved Permanently\r\n"
 				+ // 200 OK Moved Permanently\r\n
 				"Location: " + redirectLocation + "\r\n"
@@ -49,6 +51,28 @@ public class HttpRequestProcessor implements Runnable {
 		out.close();
 		reader.close();
 		clientSocket.close();
+	}
+
+	/**override this method as your requirement*/
+	public String getLocationForLang(String acceptLangs) {
+		Map<String, String> langToPath = new TreeMap<String, String>();
+		langToPath.put("en", "en");
+		langToPath.put("bn", "bn");
+		langToPath.put("ar", "ar");
+		langToPath.put("fr", "fr");
+		String defLang = "en";
+		String selectedLang = defLang;
+		
+		String langs[] = acceptLangs.split(",");
+		for (String lang : langs) {
+			lang = lang.split(";")[0];
+			if (langToPath.containsKey(lang)){
+				selectedLang = lang;
+				break;
+			}	
+		}
+
+		return "https://" + langToPath.get(selectedLang) + ".wikipedia.org/wiki/URL_redirection";	
 	}
 
 	@Override
