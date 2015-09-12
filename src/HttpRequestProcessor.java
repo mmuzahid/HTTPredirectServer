@@ -11,6 +11,11 @@ import java.util.TreeMap;
 
 /**A thread class to process HTTP request*/
 public class HttpRequestProcessor implements Runnable {
+	
+	private static String redirectionType = AppConfig.globalConfig.get("redirect.type");
+	private static String[] redirectUrls = AppConfig.globalConfig.get("redirect.urls").trim().split("\\s+");
+	private static int ringLength = redirectUrls.length;
+	private static int currRingIndex = 0;
 	java.net.Socket clientSocket = null;
 
 	public HttpRequestProcessor(Socket clientSocket) {
@@ -28,14 +33,13 @@ public class HttpRequestProcessor implements Runnable {
 		
 		String reqMessage = requestBody.toString();
 		HttpRequest request = new HttpRequest(reqMessage);
-		String lang = request.getAcceptLanguage();
-
+		
 		String noCacheHeader = "Cache-Control: no-cache, no-store, must-revalidate\r\n" + //for HTTP 1.1 client
 				"Pragma: no-cache\r\n" + // for HTTP 1.0 client
 				"Expires: 0\r\n"; // HTTP 1.0, for client and proxies
 
-		String redirectLocation = getLocationForLang(lang);
-		
+		String redirectLocation = getLocation(request);
+		System.out.println(redirectLocation);
 		String responseBody = new String("HTTP/1.1 301 Moved Permanently\r\n"
 				+ 
 				"Location: " + redirectLocation + "\r\n"
@@ -52,8 +56,30 @@ public class HttpRequestProcessor implements Runnable {
 		clientSocket.close();
 	}
 
-	/**override this method as your requirement*/
-	public String getLocationForLang(String acceptLangs) {
+	/**return redirect location*/
+	public String getLocation(HttpRequest request) {
+		String location = "";
+		if (redirectionType.equalsIgnoreCase("lang") ) {
+			location = getLocationForLang(request.getAcceptLanguage());
+		}
+		else if (redirectionType.equalsIgnoreCase("ring") ) {
+			location = getLocationForRingModel(request);
+		}
+		
+		if (!location.startsWith("http")) {
+			location = "https://" + location;
+		}
+		return location;
+	}
+	
+	/**return redirect location based on circular/ring URL model*/
+	private String getLocationForRingModel(HttpRequest request) {
+		currRingIndex = currRingIndex % ringLength;
+		return redirectUrls[currRingIndex++];
+	}
+
+	/**return redirect location based on accept language in HTTP message*/
+	private String getLocationForLang(String acceptLangs) {
 		Map<String, String> langToPath = new TreeMap<String, String>();
 		langToPath.put("en", "en");
 		langToPath.put("bn", "bn");
@@ -71,8 +97,7 @@ public class HttpRequestProcessor implements Runnable {
 			}	
 		}
 
-		String[] urls = AppConfig.globalConfig.get("redirect.urls").trim().split("\\s+");
-		return "https://" + langToPath.get(selectedLang) + "." + urls[0];	
+		return langToPath.get(selectedLang) + "." + redirectUrls[0];	
 	}
 
 	@Override

@@ -44,8 +44,9 @@ public class AppConfig {
 			fileScanner = new Scanner(file);
 			
 			while(fileScanner.hasNextLine()) {
-				String line = fileScanner.nextLine();
-				if(line.startsWith(configCommentPrefix)) {
+				String line = fileScanner.nextLine().trim();
+				
+				if(line.startsWith(configCommentPrefix) || line.isEmpty()) {
 					continue;
 				}
 				else if(!line.contains(configKeyValueSeparator)) {
