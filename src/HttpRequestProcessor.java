@@ -30,21 +30,20 @@ public class HttpRequestProcessor implements Runnable {
 		HttpRequest request = new HttpRequest(reqMessage);
 		String lang = request.getAcceptLanguage();
 
-		String noCacheHeader = "Cache-Control: no-cache, no-store, must-revalidate\r\n" + // HTTP 1.1 client
-				"Pragma: no-cache\r\n" + // HTTP 1.0, for client
+		String noCacheHeader = "Cache-Control: no-cache, no-store, must-revalidate\r\n" + //for HTTP 1.1 client
+				"Pragma: no-cache\r\n" + // for HTTP 1.0 client
 				"Expires: 0\r\n"; // HTTP 1.0, for client and proxies
 
 		String redirectLocation = getLocationForLang(lang);
 		
 		String responseBody = new String("HTTP/1.1 301 Moved Permanently\r\n"
-				+ // 200 OK Moved Permanently\r\n
+				+ 
 				"Location: " + redirectLocation + "\r\n"
 				+ "Content-Type: text/html; charset=utf-8\r\n" + noCacheHeader
 				+ "\r\n server time: " + (new java.util.Date())
 				+ "<br \\> your request: <hr \\>"
 				+ reqMessage.replace("\n", "<br \\>") + "\r\n");
 
-		//System.out.println(requestBody.toString());
 		java.io.OutputStream out = clientSocket.getOutputStream();
 		out.write(responseBody.getBytes("UTF-8"));
 		out.flush();
@@ -72,7 +71,8 @@ public class HttpRequestProcessor implements Runnable {
 			}	
 		}
 
-		return "https://" + langToPath.get(selectedLang) + ".wikipedia.org/wiki/URL_redirection";	
+		String[] urls = AppConfig.globalConfig.get("redirect.urls").trim().split("\\s+");
+		return "https://" + langToPath.get(selectedLang) + "." + urls[0];	
 	}
 
 	@Override
