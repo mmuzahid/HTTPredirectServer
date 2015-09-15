@@ -8,7 +8,8 @@
 public class HttpRedirectServer {
 
 	public static void main(String args[]) throws java.io.IOException, InterruptedException {
-		java.net.ServerSocket server = new java.net.ServerSocket(7070);
+		int port  = AppConfig.globalConfig.get("application.port");
+		java.net.ServerSocket server = new java.net.ServerSocket(port);
 		java.net.Socket clientSocket = null;
 		System.out.println("server started at 7070....");
 		while (true) {	
