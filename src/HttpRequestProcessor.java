@@ -71,9 +71,12 @@ public class HttpRequestProcessor implements Runnable {
 		return location;
 	}
 	
-	/**return redirect location based on circular/ring URL model*/
-	private String getLocationForRingModel(HttpRequest request) {
+	/**return redirect location based on circular/ring URL model
+	 * static synchronized modifier to ensure RING redirection
+	 * */
+	private static synchronized String getLocationForRingModel(HttpRequest request) {
 		currRingIndex = currRingIndex % ringLength;
+		//System.out.println(currRingIndex);
 		return redirectUrls[currRingIndex++];
 	}
 
