@@ -12,8 +12,8 @@ import java.util.TreeMap;
 /**A thread class to process HTTP request*/
 public class HttpRequestProcessor implements Runnable {
 	
-	private static String redirectionType = AppConfig.globalConfig.get("redirect.type");
-	private static String[] redirectUrls = AppConfig.globalConfig.get("redirect.urls").trim().split("\\s+");
+	private static String redirectionType = AppConfig.getValue("redirect.type");
+	private static String[] redirectUrls = AppConfig.getValue("redirect.urls").trim().split("\\s+");
 	private static int ringLength = redirectUrls.length;
 	private static int currRingIndex = 0;
 	java.net.Socket clientSocket = null;
@@ -39,7 +39,6 @@ public class HttpRequestProcessor implements Runnable {
 				"Expires: 0\r\n"; // HTTP 1.0, for client and proxies
 
 		String redirectLocation = getLocation(request);
-		System.out.println(redirectLocation);
 		String responseBody = new String("HTTP/1.1 301 Moved Permanently\r\n"
 				+ 
 				"Location: " + redirectLocation + "\r\n"
