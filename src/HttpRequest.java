@@ -22,25 +22,8 @@ public class HttpRequest {
 	private String body;
 
 	public HttpRequest(String message) {
-		int startPos = 0;
-		int endPos = message.indexOf(CRLF);
 		try {
-			String[] reqLine = message.substring(startPos, endPos)
-					.split("\\s+");
-			this.setMethod(reqLine[0]);
-			this.setUrl(reqLine[1]);
-			this.setHttpVersion(reqLine[2]);
-			do {
-				startPos = endPos + CRLF.length();
-				endPos = message.indexOf(CRLF, startPos);
-				String line = message.substring(startPos, endPos);
-				if (line.isEmpty()) {
-					this.setBody(message.substring(endPos + CRLF.length()));
-					break;
-				} else {
-					header.put(line.split(":")[0].trim(), line.split(":")[1].trim());
-				}
-			} while (true);
+			prepareRequestObject(message);
 		} catch (Exception e) {
 			System.out.println("HttpRequest create Exception: "	+ e.getMessage());
 		}
@@ -86,4 +69,29 @@ public class HttpRequest {
 		return header.get("Accept-Language");
 	}
 
+	/**
+	 * Prepare HTTP Request Object by parsing string content
+	 * */
+	private void prepareRequestObject(String message) {
+		int startPos = 0;
+		int endPos = message.indexOf(CRLF);
+
+		String[] reqLine = message.substring(startPos, endPos)
+				.split("\\s+");
+		this.setMethod(reqLine[0]);
+		this.setUrl(reqLine[1]);
+		this.setHttpVersion(reqLine[2]);
+		do {
+			startPos = endPos + CRLF.length();
+			endPos = message.indexOf(CRLF, startPos);
+			String line = message.substring(startPos, endPos);
+			if (line.isEmpty()) {
+				this.setBody(message.substring(endPos + CRLF.length()));
+				break;
+			} else {
+				header.put(line.split(":")[0].trim(), line.split(":")[1].trim());
+			}
+		} while (true);
+	}
+	
 }
