@@ -5,6 +5,8 @@
 * Date:              15-AUG-2015
 * */
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.Socket;
 import java.util.Map;
 import java.util.TreeMap;
@@ -24,21 +26,13 @@ public class HttpRequestProcessor implements Runnable {
 
 	/**process client socket request as HTTP request*/
 	public void process() throws IOException, InterruptedException {
-		StringBuffer requestBody = new StringBuffer("");
-		java.io.InputStream input = clientSocket.getInputStream();
-		java.io.InputStreamReader reader = new java.io.InputStreamReader(input);
-		do {
-			requestBody.append((char) input.read());
-		} while (input.available() > 0);
-		
-		String reqMessage = requestBody.toString();
+		String reqMessage = getContentAsString(clientSocket.getInputStream());
 		HttpRequest request = new HttpRequest(reqMessage);
 		
-		String noCacheHeader = "Cache-Control: no-cache, no-store, must-revalidate\r\n" + //for HTTP 1.1 client
-				"Pragma: no-cache\r\n" + // for HTTP 1.0 client
-				"Expires: 0\r\n"; // HTTP 1.0, for client and proxies
+		String noCacheHeader = getNoCacheHeaderString();
 
 		String redirectLocation = getLocation(request);
+		
 		String responseBody = new String("HTTP/1.1 301 Moved Permanently\r\n"
 				+ 
 				"Location: " + redirectLocation + "\r\n"
@@ -47,11 +41,10 @@ public class HttpRequestProcessor implements Runnable {
 				+ "<br \\> your request: <hr \\>"
 				+ reqMessage.replace("\n", "<br \\>") + "\r\n");
 
-		java.io.OutputStream out = clientSocket.getOutputStream();
-		out.write(responseBody.getBytes("UTF-8"));
-		out.flush();
-		out.close();
-		reader.close();
+		OutputStream outputStream = clientSocket.getOutputStream();
+		outputStream.write(responseBody.getBytes("UTF-8"));
+		outputStream.flush();
+		outputStream.close();
 		clientSocket.close();
 	}
 
@@ -76,7 +69,6 @@ public class HttpRequestProcessor implements Runnable {
 	 * */
 	private static synchronized String getLocationForRingModel(HttpRequest request) {
 		currRingIndex = currRingIndex % ringLength;
-		//System.out.println(currRingIndex);
 		return redirectUrls[currRingIndex++];
 	}
 
@@ -102,6 +94,23 @@ public class HttpRequestProcessor implements Runnable {
 		return langToPath.get(selectedLang) + "." + redirectUrls[0];	
 	}
 
+	private String getContentAsString(InputStream inputStream) throws IOException {
+		StringBuffer content = new StringBuffer("");
+		do {
+			content.append((char) inputStream.read());
+		} while (inputStream.available() > 0);
+		
+		return content.toString();
+	}
+	
+	private String getNoCacheHeaderString() {
+		String noCacheHeader = "Cache-Control: no-cache, no-store, must-revalidate\r\n" + //for HTTP 1.1 client
+				"Pragma: no-cache\r\n" + // for HTTP 1.0 client
+				"Expires: 0\r\n"; // HTTP 1.0, for client and proxies
+		return noCacheHeader;
+	}
+	
+	/**thread method*/
 	@Override
 	public void run() {
 		try {
