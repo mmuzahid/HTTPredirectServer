@@ -8,46 +8,62 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.TreeMap;
 
 /**A thread class to process HTTP request*/
-public class HttpRequestProcessor implements Runnable {
-	
-	private static enum RedirectionType {LANG, RING};
-	private static RedirectionType redirectionType;
-	private static String[] redirectUrls;
-	private static int ringLength;
+public class HttpRequestProcessor implements Runnable{	
+	private static final RedirectionType redirectionType;
+	private static final String[] redirectUrls;
+	private static final int ringLength;
 	private static int currRingIndex;
-	java.net.Socket clientSocket;
-	private static Map<String, String> subDomainForLang = new TreeMap<String, String>();
+	private static final Map<String, String> subDomainForLang;
+	private static final String defLang = "en";
+	private static final LocationResolver<HttpRequest> locationResolver;
+	private static final String noCacheHeader;
 
-	private static String defLang = "en";
+	private final Socket clientSocket;
 
 	static {
-		redirectUrls = AppConfig.getValue("redirect.urls").trim().split("\\s+");
+		redirectUrls = getUrls();
 		redirectionType = "lang".equalsIgnoreCase(AppConfig.getValue("redirect.type")) 
 				? RedirectionType.LANG : RedirectionType.RING;
 		ringLength = redirectUrls.length;
-		currRingIndex = 0;
+		subDomainForLang = new HashMap<String, String>();
 		subDomainForLang.put("en", "en");
 		subDomainForLang.put("bn", "bn");
 		subDomainForLang.put("ar", "ar");
-		subDomainForLang.put("fr", "fr");				
+		subDomainForLang.put("fr", "fr");
+		locationResolver = getLocationResolver();
+		noCacheHeader = getNoCacheHeaderString();
 	}
-	
+
 	public HttpRequestProcessor(Socket clientSocket) {
 		this.clientSocket = clientSocket;
 	}
-
+	
+	/**create new thread for each socket request*/
+	public static void processClient(Socket clientSocket) {
+		new Thread(new HttpRequestProcessor(clientSocket)).start();
+	}
+	
+	/**thread run*/
+	@Override
+	public void run() {
+		try {
+			process();
+		} catch (IOException e) {
+			e.printStackTrace();
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}	
+	}
+	
 	/**process client socket request as HTTP request*/
 	public void process() throws IOException, InterruptedException {
 		String reqMessage = getContentAsString(clientSocket.getInputStream());
-		HttpRequest request = new HttpRequest(reqMessage);
-		
-		String noCacheHeader = getNoCacheHeaderString();
-
-		String redirectLocation = getLocation(request);
+		HttpRequest request = new HttpRequest(reqMessage);		
+		String redirectLocation = setHttpProtocol(locationResolver.getLocation(request));
 		
 		String responseBody = new String("HTTP/1.1 301 Moved Permanently\r\n"
 				+ 
@@ -63,42 +79,52 @@ public class HttpRequestProcessor implements Runnable {
 		outputStream.close();
 		clientSocket.close();
 	}
-
-	/**return redirect location*/
-	public String getLocation(HttpRequest request) {
-		String location = "";
-		if (redirectionType == RedirectionType.LANG) {
-			location = getLocationForLang(request.getAcceptLanguage());
-		}
-		else if (redirectionType == RedirectionType.RING) {
-			location = getLocationForRingModel(request);
-		}
-		
-		if (!location.startsWith("http")) {
-			location = "https://" + location;
-		}
-		return location;
-	}
 	
-	/**return redirect location based on circular/ring URL model
-	 * static synchronized modifier to ensure RING redirection
-	 * */
-	private static synchronized String getLocationForRingModel(HttpRequest request) {
-		currRingIndex = currRingIndex % ringLength;
-		return redirectUrls[currRingIndex++];
+	private static String[] getUrls() {
+		return AppConfig.getValue("redirect.urls").trim().split("\\s+");
 	}
 
-	/**return redirect location based on accept language in HTTP message*/
-	private String getLocationForLang(String acceptLangs) {
-		for (String lang : acceptLangs.split(",")) {
-			lang = lang.split(";")[0];
-			if (subDomainForLang.containsKey(lang)){
-				return subDomainForLang.get(lang) + "." + redirectUrls[0];	
-			}	
+	/**returns <code>LocationResolver</code> object based on <code>redirectionType</code>*/
+	private static LocationResolver<HttpRequest> getLocationResolver() {
+		if (redirectionType == RedirectionType.LANG) {
+			return new LocationResolver<HttpRequest>() {
+				@Override
+				public String getLocation(HttpRequest request) {
+					for (String lang : request.getAcceptLanguage().split(",")) {
+						lang = lang.split(";")[0];
+						if (subDomainForLang.containsKey(lang)) {
+							return subDomainForLang.get(lang) + "."	+ redirectUrls[0];
+						}
+					}
+					return subDomainForLang.get(defLang) + "." + redirectUrls[0];
+				}
+			};
+		} else if (redirectionType == RedirectionType.RING) {
+			return new LocationResolver<HttpRequest>() {
+				@Override
+				public synchronized String getLocation(HttpRequest request) {
+					return redirectUrls[currRingIndex++ % ringLength];
+				}
+			};
 		}
-		return subDomainForLang.get(defLang) + "." + redirectUrls[0];	
+		throw new NullPointerException("Invalid Redirection Type");
 	}
 
+	private static String setHttpProtocol(String url) {
+		if (!url.startsWith("http")) {
+			url = "http://" + url;
+		}
+		return url;
+	}
+
+	private static String getNoCacheHeaderString() {
+		String noCacheHeader = "Cache-Control: no-cache, no-store, must-revalidate\r\n" + //for HTTP 1.1 client
+				"Pragma: no-cache\r\n" + // for HTTP 1.0 client
+				"Expires: 0\r\n"; // HTTP 1.0, for client and proxies
+		return noCacheHeader;
+	}
+
+	/**returns String from input stream */
 	private String getContentAsString(InputStream inputStream) throws IOException {
 		StringBuffer content = new StringBuffer("");
 		do {
@@ -108,28 +134,4 @@ public class HttpRequestProcessor implements Runnable {
 		return content.toString();
 	}
 	
-	private String getNoCacheHeaderString() {
-		String noCacheHeader = "Cache-Control: no-cache, no-store, must-revalidate\r\n" + //for HTTP 1.1 client
-				"Pragma: no-cache\r\n" + // for HTTP 1.0 client
-				"Expires: 0\r\n"; // HTTP 1.0, for client and proxies
-		return noCacheHeader;
-	}
-	
-	/**thread method*/
-	@Override
-	public void run() {
-		try {
-			process();
-		} catch (IOException e) {
-			e.printStackTrace();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}	
-	}
-
-	/**create new thread for each socket request*/
-	public static void processClient(Socket clientSocket) {
-		new Thread(new HttpRequestProcessor(clientSocket)).start();
-	}
-
 }
