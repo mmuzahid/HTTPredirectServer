@@ -14,12 +14,28 @@ import java.util.TreeMap;
 /**A thread class to process HTTP request*/
 public class HttpRequestProcessor implements Runnable {
 	
-	private static String redirectionType = AppConfig.getValue("redirect.type");
-	private static String[] redirectUrls = AppConfig.getValue("redirect.urls").trim().split("\\s+");
-	private static int ringLength = redirectUrls.length;
-	private static int currRingIndex = 0;
-	java.net.Socket clientSocket = null;
+	private static enum RedirectionType {LANG, RING};
+	private static RedirectionType redirectionType;
+	private static String[] redirectUrls;
+	private static int ringLength;
+	private static int currRingIndex;
+	java.net.Socket clientSocket;
+	private static Map<String, String> subDomainForLang = new TreeMap<String, String>();
 
+	private static String defLang = "en";
+
+	static {
+		redirectUrls = AppConfig.getValue("redirect.urls").trim().split("\\s+");
+		redirectionType = "lang".equalsIgnoreCase(AppConfig.getValue("redirect.type")) 
+				? RedirectionType.LANG : RedirectionType.RING;
+		ringLength = redirectUrls.length;
+		currRingIndex = 0;
+		subDomainForLang.put("en", "en");
+		subDomainForLang.put("bn", "bn");
+		subDomainForLang.put("ar", "ar");
+		subDomainForLang.put("fr", "fr");				
+	}
+	
 	public HttpRequestProcessor(Socket clientSocket) {
 		this.clientSocket = clientSocket;
 	}
@@ -51,10 +67,10 @@ public class HttpRequestProcessor implements Runnable {
 	/**return redirect location*/
 	public String getLocation(HttpRequest request) {
 		String location = "";
-		if (redirectionType.equalsIgnoreCase("lang") ) {
+		if (redirectionType == RedirectionType.LANG) {
 			location = getLocationForLang(request.getAcceptLanguage());
 		}
-		else if (redirectionType.equalsIgnoreCase("ring") ) {
+		else if (redirectionType == RedirectionType.RING) {
 			location = getLocationForRingModel(request);
 		}
 		
@@ -74,24 +90,13 @@ public class HttpRequestProcessor implements Runnable {
 
 	/**return redirect location based on accept language in HTTP message*/
 	private String getLocationForLang(String acceptLangs) {
-		Map<String, String> langToPath = new TreeMap<String, String>();
-		langToPath.put("en", "en");
-		langToPath.put("bn", "bn");
-		langToPath.put("ar", "ar");
-		langToPath.put("fr", "fr");
-		String defLang = "en";
-		String selectedLang = defLang;
-		
-		String langs[] = acceptLangs.split(",");
-		for (String lang : langs) {
+		for (String lang : acceptLangs.split(",")) {
 			lang = lang.split(";")[0];
-			if (langToPath.containsKey(lang)){
-				selectedLang = lang;
-				break;
+			if (subDomainForLang.containsKey(lang)){
+				return subDomainForLang.get(lang) + "." + redirectUrls[0];	
 			}	
 		}
-
-		return langToPath.get(selectedLang) + "." + redirectUrls[0];	
+		return subDomainForLang.get(defLang) + "." + redirectUrls[0];	
 	}
 
 	private String getContentAsString(InputStream inputStream) throws IOException {
