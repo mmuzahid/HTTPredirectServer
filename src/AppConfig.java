@@ -6,9 +6,11 @@
  * */
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Scanner;
 
 /**
@@ -17,13 +19,11 @@ import java.util.Scanner;
 public class AppConfig {
 	
 	private static String configDir = System.getProperty("user.dir", "");
-	private static String globalConfigFileName = "global.config";
-	private static String configCommentPrefix = "#";
-	private static String configKeyValueSeparator = "=";
-	private static Map<String, String> globalConfig;
+	private static String appPropertyFileName = "app.properties";
+	private static Properties appProperties;
 	
 	static {
-		globalConfig = getConfiguration(configDir + File.separator + globalConfigFileName );
+		appProperties = getConfiguration(configDir + File.separator + appPropertyFileName);
 	}
 
 	public static String getConfigDir() {
@@ -35,47 +35,28 @@ public class AppConfig {
 	}
 
 	/**
-	 * parse file and return configuration Map
+	 * returns application property
 	 * */
-	public static Map<String, String> getConfiguration(String fileName) {
-		Map<String, String> configMap = new HashMap<String, String>();
-		File file = new File(fileName);
-		Scanner fileScanner = null;
-		String[] lineValues = null;
-		
-		try {
-			fileScanner = new Scanner(file);
-			
-			while(fileScanner.hasNextLine()) {
-				String line = fileScanner.nextLine().trim();
-				
-				if(line.startsWith(configCommentPrefix) || line.isEmpty()) {
-					continue;
-				}
-				else if(!line.contains(configKeyValueSeparator)) {
-					break;
-				}
-				
-				lineValues = line.split(configKeyValueSeparator);
-				configMap.put(lineValues[0].trim(), lineValues[1].trim());
-			}
+	public static Properties getConfiguration(String fileName) {
+		Properties appProps = new Properties();
+		FileInputStream in;
+		try {			
+			in = new FileInputStream(fileName);
+			appProps.load(in);
+			in.close();
 		} catch (FileNotFoundException e) {
-			System.out.println(fileName + " file missing");
+			System.out.println(fileName + " file is missing");
 		} catch (Exception e) {
 			System.out.println("Exception: " + e.getMessage());
 		}
-		finally {
-			if (fileScanner != null) fileScanner.close();
-		}
-		
-		return configMap;
+		return appProps;
 	}
 
 	public static String getValue(String key) {
-		return globalConfig.get(key);
+		return appProperties.getProperty(key);
 	}
 	
 	public static String getValue(String key, String defaultValue) {
-		return globalConfig.containsKey(key) ? globalConfig.get(key) : defaultValue;
+		return appProperties.getProperty(key, defaultValue);
 	}
 }
