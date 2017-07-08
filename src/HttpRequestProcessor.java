@@ -10,6 +10,8 @@ import java.io.OutputStream;
 import java.net.Socket;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 
 /**A thread class to process HTTP request*/
 public class HttpRequestProcessor implements Runnable{	
@@ -21,7 +23,7 @@ public class HttpRequestProcessor implements Runnable{
 	private static final String defLang = "en";
 	private static final LocationResolver<HttpRequest> locationResolver;
 	private static final String noCacheHeader;
-
+	private static final  ThreadPoolExecutor executor;
 	private final Socket clientSocket;
 
 	static {
@@ -36,6 +38,8 @@ public class HttpRequestProcessor implements Runnable{
 		subDomainForLang.put("fr", "fr");
 		locationResolver = getLocationResolver();
 		noCacheHeader = getNoCacheHeaderString();
+		executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(
+						Integer.parseInt(AppConfig.getValue("request.pool.size", "100")));
 	}
 
 	public HttpRequestProcessor(Socket clientSocket) {
@@ -44,7 +48,7 @@ public class HttpRequestProcessor implements Runnable{
 	
 	/**create new thread for each socket request*/
 	public static void processClient(Socket clientSocket) {
-		new Thread(new HttpRequestProcessor(clientSocket)).start();
+		executor.execute(new HttpRequestProcessor(clientSocket));
 	}
 	
 	/**thread run*/
